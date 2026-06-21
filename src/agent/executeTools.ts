@@ -9,7 +9,8 @@ type ToolName = keyof ToolsType
 
 
 
-export const executeTools = async (name: ToolName, args: any) =>{
+
+export const executeTool = async (name: ToolName, args: any) =>{
 
     const tool = tools[name]
 
@@ -17,7 +18,11 @@ export const executeTools = async (name: ToolName, args: any) =>{
         return "Sorry, this tool is not ready yet. Use something else or better yet, let user know "
     }
 
-    const execute = tool.execute!
+    const execute = tool.execute
+
+    if (!execute){
+        return 'This is not a registered tool.'
+    }
 
     const result = await execute(args as any, {
         toolCallId: "", 
@@ -27,3 +32,5 @@ export const executeTools = async (name: ToolName, args: any) =>{
     return String(result)
 
 }
+
+executeTool('getDateTime', "args")
