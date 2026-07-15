@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import "dotenv/config";
 // // import { generateText, type ModelMessage } from "ai";
 
 // // import { openai } from "@ai-sdk/openai"; // adapter for openai model
@@ -22,7 +22,6 @@ import 'dotenv/config'
 // //   console.log(text)
 // // };
 
-
 // // runAgent('Hi my name is pritam')
 
 // import {tools} from './tools/index.ts';
@@ -37,17 +36,16 @@ import 'dotenv/config'
 // const MODEL_NAME = 'gpt-5-mini';
 
 // export const runAgent = async (
-//   useMessage: string, 
-//  conversationHistory:  ModelMessage[], 
+//   useMessage: string,
+//  conversationHistory:  ModelMessage[],
 //  callbacks: AgentCallbacks
 // ) => {
 //   const {text, toolCalls} = await generateText({
 //     model: openai(MODEL_NAME),
 //     prompt: useMessage,
-//     system: SYSTEM_PROMPT, 
+//     system: SYSTEM_PROMPT,
 //     tools,
 //     stopWhen: stepCountIs(2)
-
 
 //   })
 
@@ -56,64 +54,57 @@ import 'dotenv/config'
 
 // toolCalls.forEach((
 //   async toolCall => {
-    
+
 //     const result = await executeTools(toolCall.toolName as any, toolCall.input)
 //     console.log({result})}
-   
+
 // ))
-
-
 
 // }
 
 // runAgent("get the current data and time")
 
-
 import { generateText, type ModelMessage } from "ai";
 
-import { getTracer, Laminar } from '@lmnr-ai/lmnr';
+import { getTracer, Laminar } from "@lmnr-ai/lmnr";
 
+import { openai } from "@ai-sdk/openai";
 
- 
-
-import {openai} from '@ai-sdk/openai'
-
-import { tools } from './tools/index.ts';
-import { executeTool } from './executeTools.ts';
+import { tools } from "./tools/index.ts";
+import { executeTool } from "./executeTools.ts";
 
 import { SYSTEM_PROMPT } from "./system/prompt.ts";
 import type { AgentCallbacks } from "../types.ts";
 
 Laminar.initialize({
-  projectApiKey: process.env.LMNR_API_KEY
-})
+  projectApiKey: process.env.LMNR_PROJECT_API_KEY,
+});
 
-const MODEL_NAME = 'gpt-5-mini';
+const MODEL_NAME = "gpt-5-mini";
 
 export const runAgent = async (
   userMessage: string,
   conversationHistory: ModelMessage[],
-  callbacks: AgentCallbacks
+  callbacks: AgentCallbacks,
 ) => {
-  const {text} = await generateText({
+  const { text } = await generateText({
     model: openai(MODEL_NAME),
-    prompt: userMessage, 
+    prompt: userMessage,
     system: SYSTEM_PROMPT,
     tools,
     experimental_telemetry: {
       isEnabled: true,
-      tracer: getTracer()
-    }
-  })
+      tracer: getTracer(),
+    },
+  });
 
-  console.log('done')
+  console.log("done");
 
   // toolCalls.forEach(
   //   async (tc) =>{
-      
+
   //     console.log(await executeTool(tc.toolName, tc.input))}
   // )
-  
-}
+};
 
 // runAgent('What is the current time, right now?')
