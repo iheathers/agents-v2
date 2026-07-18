@@ -64,7 +64,7 @@ import "dotenv/config";
 
 // runAgent("get the current data and time")
 
-import { generateText, type ModelMessage } from "ai";
+import { generateText, streamText, tool, type ModelMessage } from "ai";
 
 import { getTracer, Laminar } from "@lmnr-ai/lmnr";
 
@@ -74,7 +74,9 @@ import { tools } from "./tools/index.ts";
 import { executeTool } from "./executeTools.ts";
 
 import { SYSTEM_PROMPT } from "./system/prompt.ts";
-import type { AgentCallbacks } from "../types.ts";
+import type { AgentCallbacks, ToolCallInfo } from "../types.ts";
+
+import { filterCompatibleMessages } from "./system/filterMessages.ts";
 
 Laminar.initialize({
   projectApiKey: process.env.LMNR_PROJECT_API_KEY,
@@ -87,24 +89,130 @@ export const runAgent = async (
   conversationHistory: ModelMessage[],
   callbacks: AgentCallbacks,
 ) => {
-  const { text } = await generateText({
-    model: openai(MODEL_NAME),
-    prompt: userMessage,
-    system: SYSTEM_PROMPT,
-    tools,
-    experimental_telemetry: {
-      isEnabled: true,
-      tracer: getTracer(),
-    },
-  });
-
-  console.log("done");
-
+  // const { text } = await generateText({
+  //   model: openai(MODEL_NAME),
+  //   prompt: userMessage,
+  //   system: SYSTEM_PROMPT,
+  //   tools,
+  //   experimental_telemetry: {
+  //     isEnabled: true,
+  //     tracer: getTracer(),
+  //   },
+  // });
+  // console.log("done");
   // toolCalls.forEach(
   //   async (tc) =>{
-
   //     console.log(await executeTool(tc.toolName, tc.input))}
   // )
+
+  const workingHistory = filterCompatibleMessages(conversationHistory);
+  const messages: ModelMessage[] = [
+    {
+      role: "system",
+      content: SYSTEM_PROMPT,
+    },
+    ...workingHistory,
+    {
+      role: "user",
+      content: userMessage,
+    },
+  ];
+
+  let fullResponse = "";
+
+  while (true) {
+    const result = streamText({
+      model: openai(MODEL_NAME),
+      messages,
+      tools,
+      experimental_telemetry: {
+        isEnabled: true,
+        tracer: getTracer(),
+      },
+    });
+
+    const toolCalls: ToolCallInfo[] = [];
+
+    let currentText = "";
+    let streamError: Error | null = null;
+
+    try {
+      for await (const chunk of result.fullStream) {
+        if (chunk.type === "text-delta") {
+          currentText += chunk.text;
+          callbacks.onToken(chunk.text);
+        }
+
+        if (chunk.type === "tool-call") {
+          const input = "input" in chunk ? chunk.input : {};
+          toolCalls.push({
+            toolCallId: chunk.toolCallId,
+            toolName: chunk.toolName,
+            args: input as any,
+          });
+
+          callbacks.onToolCallStart(chunk.toolName, input);
+        }
+      }
+    } catch (error) {
+      streamError = error as Error;
+
+      if (
+        !currentText &&
+        !streamError.message.includes("No output generated")
+      ) {
+        throw streamError;
+      }
+    }
+
+    fullResponse += currentText;
+
+    if (streamError && !currentText) {
+      fullResponse = "Sorry about that. ";
+
+      callbacks.onToken(fullResponse);
+      break;
+    }
+
+    const finishReason = await result.finishReason;
+
+    if (finishReason !== "tool-calls" || toolCalls.length === 0) {
+      const responseMessages = await result.response;
+
+      messages.push(...responseMessages.messages);
+      break;
+    }
+
+    const responseMessages = await result.response;
+    messages.push(...responseMessages.messages);
+
+    for (const tc of toolCalls) {
+      const result = await executeTool(
+        tc.toolName as keyof typeof tools,
+        tc.args,
+      );
+
+      callbacks.onToolCallEnd(tc.toolName, result);
+
+      messages.push({
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolCallId: tc.toolCallId,
+            toolName: tc.toolName,
+            output: {
+              type: "text",
+              value: result,
+            },
+          },
+        ],
+      });
+    }
+  }
+
+  callbacks.onComplete(fullResponse);
+  return messages;
 };
 
 // runAgent('What is the current time, right now?')
