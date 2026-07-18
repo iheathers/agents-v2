@@ -1,36 +1,28 @@
-import {tools} from './tools/index.ts'
-
-// export type ToolName = keyof typeof tools
-
-
+import { tools } from "./tools/index.ts";
 
 type ToolsType = typeof tools;
-type ToolName = keyof ToolsType
+type ToolName = keyof ToolsType;
 
+const executors: {
+  [K in ToolName]: (args: unknown) => Promise<string>;
+} = {
+  getDateTime: async () => new Date().toISOString(),
+};
 
+export const executeTool = async (name: ToolName, args: any) => {
+  const tool = tools[name];
 
+  if (!tool) {
+    return "Sorry, this tool is not ready yet. Use something else or better yet, let user know ";
+  }
 
-export const executeTool = async (name: ToolName, args: any) =>{
+  const execute = executors[name];
 
-    const tool = tools[name]
+  if (!execute) {
+    return "This is not a registered tool.";
+  }
 
-    if (!tool){
-        return "Sorry, this tool is not ready yet. Use something else or better yet, let user know "
-    }
+  const result = await execute(args);
 
-    const execute = tool.execute
-
-    if (!execute){
-        return 'This is not a registered tool.'
-    }
-
-    const result = await execute(args as any, {
-        toolCallId: "", 
-        messages: []
-    })
-
-    return String(result)
-
-}
-
-executeTool('getDateTime', "args")
+  return String(result);
+};

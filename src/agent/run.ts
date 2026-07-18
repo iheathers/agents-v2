@@ -64,10 +64,10 @@ import "dotenv/config";
 
 // runAgent("get the current data and time")
 
-import { generateText, streamText, tool, type ModelMessage } from "ai";
-
-import { getTracer, Laminar } from "@lmnr-ai/lmnr";
-
+import { streamText, type ModelMessage } from "ai";
+import { DevToolsTelemetry } from "@ai-sdk/devtools";
+import { OpenTelemetry } from "@ai-sdk/otel";
+import { getTracer } from "@lmnr-ai/lmnr";
 import { openai } from "@ai-sdk/openai";
 
 import { tools } from "./tools/index.ts";
@@ -77,10 +77,6 @@ import { SYSTEM_PROMPT } from "./system/prompt.ts";
 import type { AgentCallbacks, ToolCallInfo } from "../types.ts";
 
 import { filterCompatibleMessages } from "./system/filterMessages.ts";
-
-Laminar.initialize({
-  projectApiKey: process.env.LMNR_PROJECT_API_KEY,
-});
 
 const MODEL_NAME = "gpt-5-mini";
 
@@ -107,10 +103,6 @@ export const runAgent = async (
 
   const workingHistory = filterCompatibleMessages(conversationHistory);
   const messages: ModelMessage[] = [
-    {
-      role: "system",
-      content: SYSTEM_PROMPT,
-    },
     ...workingHistory,
     {
       role: "user",
@@ -120,14 +112,22 @@ export const runAgent = async (
 
   let fullResponse = "";
 
+  // Share one DevTools runId across all streamText calls in this turn
+  // so tool-call + follow-up steps appear as one run.
+  const runId = crypto.randomUUID();
+  const telemetryIntegrations = [
+    DevToolsTelemetry({ runId }),
+    new OpenTelemetry({ tracer: getTracer() }),
+  ];
+
   while (true) {
     const result = streamText({
       model: openai(MODEL_NAME),
+      instructions: SYSTEM_PROMPT,
       messages,
       tools,
-      experimental_telemetry: {
-        isEnabled: true,
-        tracer: getTracer(),
+      telemetry: {
+        integrations: telemetryIntegrations,
       },
     });
 
