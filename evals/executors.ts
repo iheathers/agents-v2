@@ -1,5 +1,12 @@
-import { generateText, stepCountIs, tool, type ToolSet } from "ai";
+import {
+  generateText,
+  stepCountIs,
+  tool,
+  type ModelMessage,
+  type ToolSet,
+} from "ai";
 import { openai } from "@ai-sdk/openai";
+import { getTracer } from "@lmnr-ai/lmnr";
 import { z } from "zod";
 
 import type {
@@ -9,6 +16,7 @@ import type {
   MultiTurnResult,
 } from "./types.ts";
 import { buildMessages, buildMockedTools } from "./utils.ts";
+import { SYSTEM_PROMPT } from "../dist/agent/system/prompt";
 
 /**
  * Tool definitions for mocked single-turn evaluations.
@@ -101,3 +109,67 @@ export async function singleTurnWithMocks(
  * Multi-turn executor with mocked tools.
  * Runs a complete agent loop with tools returning fixed values.
  */
+
+export const multiTurnWithMocks = async (data: MultiTurnEvalData) => {
+  const tools = buildMockedTools(data.mockTools);
+
+  // if (!data.messages && data.prompt == null) {
+  //   throw new Error("MultiTurnEvalData requires either messages or prompt");
+  // }
+
+  const messages: ModelMessage[] = data.messages ?? [
+    {
+      role: "system",
+      content: SYSTEM_PROMPT,
+    },
+    {
+      role: "user",
+      content: data.prompt!,
+    },
+  ];
+
+  const result = await generateText({
+    model: openai(data.config?.model ?? "gpt-5-mini"),
+    messages,
+    tools,
+    stopWhen: stepCountIs(data.config?.maxSteps ?? 20),
+    experimental_telemetry: {
+      isEnabled: true,
+      tracer: getTracer(),
+    },
+  });
+
+  const allToolCalls: string[] = [];
+  const steps = result.steps.map((step) => {
+    const stepToolCalls = (step.toolCalls ?? []).map((tc) => {
+      allToolCalls.push(tc.toolName);
+
+      return {
+        toolName: tc.toolName,
+        args: "args" in tc ? tc.args : {},
+      };
+    });
+
+    const stepToolResults = (step.staticToolResults ?? []).map((tr) => {
+      return {
+        toolName: tr.toolName,
+        result: "results" in tr ? tr.results : tr,
+      };
+    });
+
+    return {
+      toolCalls: stepToolCalls.length > 0 ? stepToolCalls : undefined,
+      toolResults: stepToolResults.length > 0 ? stepToolResults : undefined,
+      text: step.text || undefined,
+    };
+  });
+
+  const toolsUsed = [new Set(allToolCalls)];
+
+  return {
+    text: result.text,
+    steps,
+    toolsUsed,
+    toolCallOrder: allToolCalls,
+  };
+};
