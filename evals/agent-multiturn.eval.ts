@@ -1,9 +1,8 @@
-import { evaluate } from "@lmnr-ai/lmnr";
+import { evaluate, Laminar } from "@lmnr-ai/lmnr";
 
-import { toolOrderCorrect, toolsAvoided, llmJudge } from "./evaluators";
+import { llmJudge } from "./evaluators";
 
 import type {
-  MultiTurnDatasetEntry,
   MultiTurnEvalData,
   MultiTurnResult,
   MultiTurnTarget,
@@ -23,7 +22,13 @@ evaluate({
   evaluators: {
     outputQuality: async (output, target) => {
       if (!target) return 1;
-      return llmJudge(output as any, target as any);
+      const { score, reason } = await llmJudge(
+        output,
+        target as MultiTurnTarget,
+      );
+      // Laminar scores must be numeric; attach reason on the trace for the UI
+      Laminar.setTraceMetadata({ judgeReason: reason });
+      return score;
     },
   },
   config: {

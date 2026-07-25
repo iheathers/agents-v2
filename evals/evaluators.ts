@@ -23,7 +23,7 @@ const judgeSchema = z.object({
 export const llmJudge = async (
   output: MultiTurnResult,
   target: MultiTurnTarget,
-) => {
+): Promise<{ score: number; reason: string }> => {
   const result = await generateObject({
     model: openai("gpt-5.1"),
     schema: judgeSchema,
@@ -62,7 +62,10 @@ Scoring criteria:
     ],
   });
 
-  return result.object.score / 10;
+  return {
+    score: result.object.score / 10,
+    reason: result.object.reason,
+  };
 };
 
 export function toolsSelected(

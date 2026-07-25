@@ -110,7 +110,9 @@ export async function singleTurnWithMocks(
  * Runs a complete agent loop with tools returning fixed values.
  */
 
-export const multiTurnWithMocks = async (data: MultiTurnEvalData) => {
+export const multiTurnWithMocks = async (
+  data: MultiTurnEvalData,
+): Promise<MultiTurnResult> => {
   const tools = buildMockedTools(data.mockTools);
 
   // if (!data.messages && data.prompt == null) {
@@ -164,7 +166,7 @@ export const multiTurnWithMocks = async (data: MultiTurnEvalData) => {
     };
   });
 
-  const toolsUsed = [new Set(allToolCalls)];
+  const toolsUsed = Array.from(new Set(allToolCalls));
 
   return {
     text: result.text,
