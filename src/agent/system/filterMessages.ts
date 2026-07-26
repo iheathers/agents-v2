@@ -13,23 +13,30 @@ export const filterCompatibleMessages = (
       return true;
     }
 
-    // Keep assistant messages that have text content
+    // Keep assistant messages that have text and/or tool-call content.
+    // Tool-call-only messages must be kept so matching tool results stay valid.
     if (msg.role === "assistant") {
       const content = msg.content;
       if (typeof content === "string" && content.trim()) {
         return true;
       }
-      // Check for array content with text parts
       if (Array.isArray(content)) {
-        const hasTextContent = content.some((part: unknown) => {
+        return content.some((part: unknown) => {
           if (typeof part === "string" && part.trim()) return true;
-          if (typeof part === "object" && part !== null && "text" in part) {
+          if (typeof part !== "object" || part === null) return false;
+          if ("text" in part) {
             const textPart = part as { text?: string };
-            return textPart.text && textPart.text.trim();
+            return Boolean(textPart.text?.trim());
+          }
+          if ("type" in part) {
+            const typedPart = part as { type?: string };
+            return (
+              typedPart.type === "tool-call" ||
+              typedPart.type === "tool-call-delta"
+            );
           }
           return false;
         });
-        return hasTextContent;
       }
     }
 
